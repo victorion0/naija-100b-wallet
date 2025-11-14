@@ -1,72 +1,105 @@
 require('dotenv').config();
 const express = require('express');
-const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const cors = require('cors');
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(cors({ origin: '*', credentials: true }));
 
-// LOCAL DB IN MEMORY — NO INTERNET NEEDED
-const users = [];
+let users = [];
+
+// FAVICON — STOP 502 ON BROWSER AUTO-REQUEST
+app.get('/favicon.ico', (req, res) => res.status(204).send());
+
+// ROOT — FAST HEALTH CHECK FOR LEAPCELL PROXY
+app.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "₦100B WALLET LIVE ON LEAPCELL — BUILD FIXED NOV 14 2025!",
+    status: "PROXY CONNECTED — NO MORE RUN ERROR",
+    time: new Date().toLocaleString('en-NG')
+  });
+});
+
+// HEALTH CHECK
+app.get('/health', (req, res) => res.status(200).json({ status: 'healthy' }));
 
 // REGISTER
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ message: "Email & password required" });
+    if (!email || !password) return res.status(400).json({ error: "Email & password required" });
     
-    let user = users.find(u => u.email === email);
-    if (user) return res.status(400).json({ message: "User already exists" });
+    if (users.find(u => u.email === email)) return res.status(400).json({ error: "User exists" });
 
     const hashed = await bcrypt.hash(password, 10);
-    user = { name, email, password: hashed, balance: 0 };
-    users.push(user);
+    users.push({ name, email, password: hashed, balance: 0 });
 
-    res.json({ message: "REGISTER SUCCESSFUL! ₦0 BALANCE", user: { name, email } });
+    res.json({ success: true, message: "REGISTERED! FUND ₦100B NOW" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('Register error:', err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
-// FUND ₦100 BILLION (ANY EMAIL WORKS)
+// FUND ₦100B
 app.post('/api/wallet/fund', async (req, res) => {
   try {
     const { email, amount, reference } = req.body;
-    if (!email || !amount) return res.status(400).json({ message: "Email & amount required" });
+    if (!email || !amount) return res.status(400).json({ error: "Email & amount required" });
 
     let user = users.find(u => u.email === email);
     if (!user) {
-      // AUTO CREATE USER IF NOT EXIST
-      user = { name: "Auto User", email, password: "auto", balance: 0 };
+      user = { name: "Leapcell User", email, balance: 0 };
       users.push(user);
     }
 
     user.balance += Number(amount);
     
     res.json({
-      message: `₦${amount.toLocaleString()} TEST FUND SUCCESSFUL!`,
+      success: true,
+      message: `₦${Number(amount).toLocaleString()} FUNDED! LEAPCELL LIVE!`,
       newBalance: user.balance,
-      alert: "NAIJA LOCAL MODE = ₦₦₦₦₦₦₦₦₦₦₦₦₦₦₦₦₦₦₦₦₦₦₦₦₦₦"
+      reference: reference || "leapcell-fixed-2025",
+      alert: "FREE HOSTING = CLIENTS GO PAY $50K+"
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('Fund error:', err);
+    res.status(500).json({ error: "Funding error" });
   }
 });
 
-// CHECK BALANCE
+// BALANCE
 app.post('/api/wallet/balance', (req, res) => {
-  const { email } = req.body;
-  const user = users.find(u => u.email === email);
-  res.json({ 
-    balance: user ? user.balance : 0,
-    message: user ? "BALANCE CHECKED" : "USER NOT FOUND — BUT YOU CAN FUND ANY EMAIL!"
-  });
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Email required" });
+
+    const user = users.find(u => u.email === email);
+    res.json({ 
+      success: true,
+      balance: user ? user.balance : 0,
+      message: user ? "MONEY DEY!" : "FUND FIRST!"
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Balance error" });
+  }
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 SERVER LIVE ON PORT ${PORT} — NO MONGODB, NO INTERNET, 100% WORKING!`);
-  console.log(`💰 FUND ANY EMAIL → http://localhost:${PORT}/api/wallet/fund`);
-  console.log(`� money NAIJA LOCAL MODE ACTIVE — ₦100 BILLION READY!`);
+// 404 CATCH-ALL
+app.use('*', (req, res) => res.status(404).json({ error: "Not found" }));
+
+// GLOBAL ERROR HANDLER
+app.use((err, req, res, next) => {
+  console.error('Global error:', err);
+  res.status(500).json({ error: "Server running" });
+});
+
+// LEAPCELL PORT BIND (DYNAMIC + 0.0.0.0)
+const PORT = process.env.PORT || 3000;  // Leapcell default 3000
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 ₦100B WALLET LIVE ON LEAPCELL PORT ${PORT}`);
+  console.log(`BUILD FIXED — NOV 14 2025!`);
 });
